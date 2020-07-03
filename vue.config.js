@@ -1,9 +1,18 @@
 const path = require("path");
-//const UglifyPlugin = require("uglifyjs-webpack-plugin");
 const DashboardPlugin = require('webpack-dashboard/plugin');
 const vConsolePlugin = require('vconsole-webpack-plugin'); // 引入 移动端模拟开发者工具 插件 （另：https://github.com/liriliri/eruda）
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;//Webpack包文件分析器
-const Jarvis = require("webpack-jarvis");
+const Jarvis = require("webpack-jarvis");//展示打包后文件大小
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+//const UglifyJsPlugin = require('uglifyjs-webpack-plugin'); 这个不能压缩es6故用下面的插件
+const TerserPlugin = require('terser-webpack-plugin');
+const HappyPack = require('happypack');
+const os = require('os');
+const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length });
+//CSS_使用purifycss-webpack来实现Tree Shaking
+const glob = require('glob');
+const PurifyCssWebpack  = require('purifycss-webpack');
+
 module.exports = {
   // 基本路径
   /* 部署生产环境和开发环境下的URL：可对当前环境进行区分，baseUrl 从 Vue CLI 3.3 起已弃用，要使用publicPath */
@@ -23,107 +32,36 @@ module.exports = {
   // see https://github.com/vuejs/vue-cli/blob/dev/docs/webpack.md
   chainWebpack: () => {
   },
-  // configureWebpack: config => {
-  //   if (process.env.NODE_ENV === "production") {
-  //     // 为生产环境修改配置...
-  //     config.mode = "production";
-  //     // 将每个依赖包打包成单独的js文件
-  //     var optimization = {
-  //       runtimeChunk: "single",
-  //       splitChunks: {
-  //         chunks: "all",
-  //         maxInitialRequests: Infinity,
-  //         minSize: 20000, // 依赖包超过20000bit将被单独打包
-  //         cacheGroups: {
-  //           vendor: {
-  //             test: /[\\/]node_modules[\\/]/,
-  //             name (module) {
-  //               // get the name. E.g. node_modules/packageName/not/this/part.js
-  //               // or node_modules/packageName
-  //               const packageName = module.context.match(
-  //                 /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-  //               )[1];
-  //               // npm package names are URL-safe, but some servers don't like @ symbols
-  //               return `npm.${packageName.replace("@", "")}`;
-  //             }
-  //           }
-  //         }
-  //       },
-  //       minimizer: [
-  //         new UglifyPlugin({
-  //           uglifyOptions: {
-  //             compress: {
-  //               warnings: false,
-  //               drop_console: true, // console
-  //               drop_debugger: false,
-  //               pure_funcs: ["console.log"] // 移除console
-  //             }
-  //           }
-  //         })
-  //       ]
-  //     };
-  //     Object.assign(config, {
-  //       optimization
-  //     });
-  //   } else {
-  //     // 为开发环境修改配置...
-  //     config.mode = "development";
-  //     var optimization2 = {
-  //       runtimeChunk: "single",
-  //       splitChunks: {
-  //         chunks: "all",
-  //         maxInitialRequests: Infinity,
-  //         minSize: 20000, // 依赖包超过20000bit将被单独打包
-  //         cacheGroups: {
-  //           vendor: {
-  //             test: /[\\/]node_modules[\\/]/,
-  //             name (module) {
-  //               // get the name. E.g. node_modules/packageName/not/this/part.js
-  //               // or node_modules/packageName
-  //               const packageName = module.context.match(
-  //                 /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-  //               )[1];
-  //               // npm package names are URL-safe, but some servers don't like @ symbols
-  //               return `npm.${packageName.replace("@", "")}`;
-  //             }
-  //           }
-  //         }
-  //       }
-  //     };
-  //   }
-  //   Object.assign(config, {
-  //     // 开发生产共同配置
-  //     // externals: {
-  //     //   'vue': 'Vue',
-  //     //   'element-ui': 'ELEMENT',
-  //     //   'vue-router': 'VueRouter',
-  //     //   'vuex': 'Vuex'
-  //     // } // 防止将某些 import 的包(package)打包到 bundle 中，而是在运行时(runtime)再去从外部获取这些扩展依赖(用于csdn引入)
-  //     resolve: {
-  //       extensions: [".js", ".vue", ".json", ".ts"], //文件优先解析后缀名顺序
-  //       alias: {
-  //         "@": path.resolve(__dirname, "./src")
-  //       }, // 别名配置
-  //       plugins: [
-  //         new DashboardPlugin()
-  //       ]
-  //     },
-  //     optimization: optimization2
-  //   });
-  // },
+
   configureWebpack: config => {  // 覆盖webpack默认配置的都在这里
     console.log(config,'默认配置');
     //生产and测试环境
     let pluginsPro = [
       //	Webpack包文件分析器(https://github.com/webpack-contrib/webpack-bundle-analyzer)
       new BundleAnalyzerPlugin(),
-      new DashboardPlugin()
+      new DashboardPlugin(),
+      new CleanWebpackPlugin (), // 清空dist文件夹
+      new PurifyCssWebpack({
+        paths:glob.sync(path.join(__dirname,'src/*.html'))
+      })
     ];
     //开发环境
     let pluginsDev = [
       new DashboardPlugin(),
       new Jarvis({
         port: 1337 // optional: set a port
+      }),
+      new HappyPack({
+        //用id来标识 happypack处理那里类文件
+        id: 'happyBabel',
+        //如何处理  用法和loader 的配置一样
+        loaders: [{
+          loader: 'babel-loader?cacheDirectory=true',
+        }],
+        //共享进程池
+        threadPool: happyThreadPool,
+        //允许 HappyPack 输出日志
+        verbose: true,
       }),
       //移动端模拟开发者工具(https://github.com/diamont1001/vconsole-webpack-plugin  https://github.com/Tencent/vConsole)
       new vConsolePlugin({
@@ -133,6 +71,23 @@ module.exports = {
     ];
     if(process.env.NODE_ENV === 'production') { // 为生产环境修改配置...process.env.NODE_ENV !== 'development'
       config.plugins = [...config.plugins, ...pluginsPro];
+      config.optimization= {
+        minimize: true, // 压缩
+        minimizer:[ // 允许你通过提供一个或多个定制过的 TerserPlugin 实例，覆盖默认压缩工具(minimizer)。
+          new TerserPlugin({
+            cache: true,
+            parallel: true,
+            sourceMap: true, // Must be set to true if using source-maps in production
+            terserOptions: {
+              // https://github.com/webpack-contrib/terser-webpack-plugin#terseroptions
+            }
+          })]
+        //   Or, as function:
+        //   (compiler) => {
+        //     const TerserPlugin = require('terser-webpack-plugin');
+        //     new TerserPlugin({ /* your config */ }).apply(compiler);
+        //   }
+      }
     } else {
       // 为开发环境修改配置...
       config.plugins = [...config.plugins, ...pluginsDev];
