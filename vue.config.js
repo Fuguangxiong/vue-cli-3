@@ -1,5 +1,9 @@
 const path = require("path");
-const UglifyPlugin = require("uglifyjs-webpack-plugin");
+//const UglifyPlugin = require("uglifyjs-webpack-plugin");
+const DashboardPlugin = require('webpack-dashboard/plugin');
+const vConsolePlugin = require('vconsole-webpack-plugin'); // 引入 移动端模拟开发者工具 插件 （另：https://github.com/liriliri/eruda）
+const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;//Webpack包文件分析器
+const Jarvis = require("webpack-jarvis");
 module.exports = {
   // 基本路径
   /* 部署生产环境和开发环境下的URL：可对当前环境进行区分，baseUrl 从 Vue CLI 3.3 起已弃用，要使用publicPath */
@@ -19,91 +23,121 @@ module.exports = {
   // see https://github.com/vuejs/vue-cli/blob/dev/docs/webpack.md
   chainWebpack: () => {
   },
-  configureWebpack: config => {
-    if (process.env.NODE_ENV === "production") {
-      // 为生产环境修改配置...
-      config.mode = "production";
-      // 将每个依赖包打包成单独的js文件
-      var optimization = {
-        runtimeChunk: "single",
-        splitChunks: {
-          chunks: "all",
-          maxInitialRequests: Infinity,
-          minSize: 20000, // 依赖包超过20000bit将被单独打包
-          cacheGroups: {
-            vendor: {
-              test: /[\\/]node_modules[\\/]/,
-              name (module) {
-                // get the name. E.g. node_modules/packageName/not/this/part.js
-                // or node_modules/packageName
-                const packageName = module.context.match(
-                  /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-                )[1];
-                // npm package names are URL-safe, but some servers don't like @ symbols
-                return `npm.${packageName.replace("@", "")}`;
-              }
-            }
-          }
-        },
-        minimizer: [
-          new UglifyPlugin({
-            uglifyOptions: {
-              compress: {
-                warnings: false,
-                drop_console: true, // console
-                drop_debugger: false,
-                pure_funcs: ["console.log"] // 移除console
-              }
-            }
-          })
-        ]
-      };
-      Object.assign(config, {
-        optimization
-      });
+  // configureWebpack: config => {
+  //   if (process.env.NODE_ENV === "production") {
+  //     // 为生产环境修改配置...
+  //     config.mode = "production";
+  //     // 将每个依赖包打包成单独的js文件
+  //     var optimization = {
+  //       runtimeChunk: "single",
+  //       splitChunks: {
+  //         chunks: "all",
+  //         maxInitialRequests: Infinity,
+  //         minSize: 20000, // 依赖包超过20000bit将被单独打包
+  //         cacheGroups: {
+  //           vendor: {
+  //             test: /[\\/]node_modules[\\/]/,
+  //             name (module) {
+  //               // get the name. E.g. node_modules/packageName/not/this/part.js
+  //               // or node_modules/packageName
+  //               const packageName = module.context.match(
+  //                 /[\\/]node_modules[\\/](.*?)([\\/]|$)/
+  //               )[1];
+  //               // npm package names are URL-safe, but some servers don't like @ symbols
+  //               return `npm.${packageName.replace("@", "")}`;
+  //             }
+  //           }
+  //         }
+  //       },
+  //       minimizer: [
+  //         new UglifyPlugin({
+  //           uglifyOptions: {
+  //             compress: {
+  //               warnings: false,
+  //               drop_console: true, // console
+  //               drop_debugger: false,
+  //               pure_funcs: ["console.log"] // 移除console
+  //             }
+  //           }
+  //         })
+  //       ]
+  //     };
+  //     Object.assign(config, {
+  //       optimization
+  //     });
+  //   } else {
+  //     // 为开发环境修改配置...
+  //     config.mode = "development";
+  //     var optimization2 = {
+  //       runtimeChunk: "single",
+  //       splitChunks: {
+  //         chunks: "all",
+  //         maxInitialRequests: Infinity,
+  //         minSize: 20000, // 依赖包超过20000bit将被单独打包
+  //         cacheGroups: {
+  //           vendor: {
+  //             test: /[\\/]node_modules[\\/]/,
+  //             name (module) {
+  //               // get the name. E.g. node_modules/packageName/not/this/part.js
+  //               // or node_modules/packageName
+  //               const packageName = module.context.match(
+  //                 /[\\/]node_modules[\\/](.*?)([\\/]|$)/
+  //               )[1];
+  //               // npm package names are URL-safe, but some servers don't like @ symbols
+  //               return `npm.${packageName.replace("@", "")}`;
+  //             }
+  //           }
+  //         }
+  //       }
+  //     };
+  //   }
+  //   Object.assign(config, {
+  //     // 开发生产共同配置
+  //     // externals: {
+  //     //   'vue': 'Vue',
+  //     //   'element-ui': 'ELEMENT',
+  //     //   'vue-router': 'VueRouter',
+  //     //   'vuex': 'Vuex'
+  //     // } // 防止将某些 import 的包(package)打包到 bundle 中，而是在运行时(runtime)再去从外部获取这些扩展依赖(用于csdn引入)
+  //     resolve: {
+  //       extensions: [".js", ".vue", ".json", ".ts"], //文件优先解析后缀名顺序
+  //       alias: {
+  //         "@": path.resolve(__dirname, "./src")
+  //       }, // 别名配置
+  //       plugins: [
+  //         new DashboardPlugin()
+  //       ]
+  //     },
+  //     optimization: optimization2
+  //   });
+  // },
+  configureWebpack: config => {  // 覆盖webpack默认配置的都在这里
+    console.log(config,'默认配置');
+    //生产and测试环境
+    let pluginsPro = [
+      //	Webpack包文件分析器(https://github.com/webpack-contrib/webpack-bundle-analyzer)
+      new BundleAnalyzerPlugin(),
+      new DashboardPlugin()
+    ];
+    //开发环境
+    let pluginsDev = [
+      new DashboardPlugin(),
+      new Jarvis({
+        port: 1337 // optional: set a port
+      }),
+      //移动端模拟开发者工具(https://github.com/diamont1001/vconsole-webpack-plugin  https://github.com/Tencent/vConsole)
+      new vConsolePlugin({
+        filter: [], // 需要过滤的入口文件
+        enable: true // 发布代码前记得改回 false,如果允许测试开发环境出现vconsole,可以选择不修改
+      }),
+    ];
+    if(process.env.NODE_ENV === 'production') { // 为生产环境修改配置...process.env.NODE_ENV !== 'development'
+      config.plugins = [...config.plugins, ...pluginsPro];
     } else {
       // 为开发环境修改配置...
-      config.mode = "development";
-      var optimization2 = {
-        runtimeChunk: "single",
-        splitChunks: {
-          chunks: "all",
-          maxInitialRequests: Infinity,
-          minSize: 20000, // 依赖包超过20000bit将被单独打包
-          cacheGroups: {
-            vendor: {
-              test: /[\\/]node_modules[\\/]/,
-              name (module) {
-                // get the name. E.g. node_modules/packageName/not/this/part.js
-                // or node_modules/packageName
-                const packageName = module.context.match(
-                  /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-                )[1];
-                // npm package names are URL-safe, but some servers don't like @ symbols
-                return `npm.${packageName.replace("@", "")}`;
-              }
-            }
-          }
-        }
-      };
+      config.plugins = [...config.plugins, ...pluginsDev];
     }
-    Object.assign(config, {
-      // 开发生产共同配置
-      // externals: {
-      //   'vue': 'Vue',
-      //   'element-ui': 'ELEMENT',
-      //   'vue-router': 'VueRouter',
-      //   'vuex': 'Vuex'
-      // } // 防止将某些 import 的包(package)打包到 bundle 中，而是在运行时(runtime)再去从外部获取这些扩展依赖(用于csdn引入)
-      resolve: {
-        extensions: [".js", ".vue", ".json", ".ts"], //文件优先解析后缀名顺序
-        alias: {
-          "@": path.resolve(__dirname, "./src")
-        }, // 别名配置
-        plugins: []
-      },
-      optimization: optimization2
-    });
+    console.log(config,'自定义配置');
   },
   // vue-loader 配置项
   // https://vue-loader.vuejs.org/en/options.html
@@ -133,7 +167,7 @@ module.exports = {
   // webpack-dev-server 相关配置
   devServer: {
     /* 自动打开浏览器 */
-    open: false,
+    open: true,
     // host: "192.168.0.137",
     host: "0.0.0.0", //局域网和本地访问
     //host: "192.168.1.137",
