@@ -5,14 +5,38 @@
   </div>
 </template>
 
-<script>
-// @ is an alias to /src
-import HelloWorld from '@/components/HelloWorld.vue'
+<script lang="ts">
+    import {Component, Vue} from 'vue-property-decorator';
+    import HelloWorld from '@/components/HelloWorld.vue';
+    import Request from '@/service';
 
-export default {
-  name: 'Home',
-  components: {
-    HelloWorld
-  }
-}
+    @Component({
+        components: {
+            HelloWorld
+        },
+        directives: {
+            // focus: {
+            //     // 指令的定义
+            //     inserted: function (el) {
+            //         el.focus()
+            //     }
+            // }
+        }
+    })
+    export default class Home extends Vue {
+        // hello = 'world';
+        //
+        // get world() {
+        //     return this.hello + 'world';
+        // }
+
+        mounted() {
+            this.sayHello();
+        }
+
+        sayHello() {
+            console.log("调用了",Request);
+            //Request.service.get({name:"傅光曦"});
+        }
+    }
 </script>
